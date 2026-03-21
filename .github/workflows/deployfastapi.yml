@@ -1,0 +1,36 @@
+name: Deploy Static Website with Nginx
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEYS }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts
+
+      - name: Deploy to server
+        run: |
+          ssh -i ~/.ssh/id_rsa ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} <<EOF
+            cd /home/ec2-user/green
+
+            # pull latest code
+            git pull origin main
+
+            # rebuild image (no cache to reflect changes)
+            docker build --no-cache -t fastapi:latest .
+
+            # run new container
+            docker run --name fastwebsite -d -p 8040:8000 fastapi:latest
+          EOF
